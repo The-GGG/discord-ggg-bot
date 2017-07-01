@@ -1,0 +1,20 @@
+{
+  "name": "discord-ggg-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "nodemon index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "discord.js": "^11.1.0",
+    "slack-client": "git+https://github.com/The-GGG/slack-client.git",
+    "members": "git+https://github.com/The-GGG/members.git"
+  },
+  "devDependencies": {
+    "eslint": "^4.1.1",
+    "eslint-config-google": "^0.8.0"
+  }
+}

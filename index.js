@@ -7,23 +7,43 @@ module.exports = class DiscordBot {
    * @param  {string} botToken
    * @param  {string} slackToken
    * @param  {string} azureConnectionString
+   * @param  {string} members
    */
   constructor(botToken, slackToken, azureConnectionString, members) {
+    this.botToken = botToken;
     this.discordClient = new Discord.Client();
-    this.discordClient.login(botToken);
     this.slackClient = new Slack(slackToken);
     this.discordToSlackMap = {};
 
     members.forEach((member) => {
-      this.discordToSlackMap[member.DiscordId] = member.SlackId;
-    });
-
-    this.discordClient.on('ready', () => {
-      console.log('Bot has connected.');
+      if (member.discordId) {
+        this.discordToSlackMap[member.discordId] = member.slackId;
+      }
     });
   }
+  /**
+   * @param  {array} slackIds
+   * @return {string}
+   */
+  onlineUsersMessage(slackIds) {
+    let messageString = 'Nobody :feelsbadman:';
+    if (slackIds.length) {
+      messageString = '';
+      slackIds.forEach((slackId) => {
+        messageString += `<@${slackId}> `;
+      });
+    }
 
+    return `Online now: ${messageString}`;
+  }
+  /**
+   * @param  {string} channelIdToNotify
+   * @param  {string} notifiedBySlackUserId
+   */
   startSession(channelIdToNotify, notifiedBySlackUserId) {
+    this.discordClient.login(this.botToken);
+    let onlineUsers = [];
+    let slackMessageId = '';
     let slackMessageAttachment = [
       {
           fallback: 'GGG ASSEMBLE!',
@@ -32,43 +52,58 @@ module.exports = class DiscordBot {
           title_link: 'http://www.theggg.club/',
           image_url: 'https://www.overwatchcontenders.com/images/bg/art-team-jumping.jpg',
           footer: `Notified by: <@${notifiedBySlackUserId}>}`,
+          text: this.onlineUsersMessage(onlineUsers),
       },
     ];
 
-    // TODO: Get players that are already online.
-    let onlineUsers = [];
+    this.discordClient.on('ready', () => {
+      // Get users that are already online.
+      this.discordClient.guilds.first().fetchMembers().then((res) => {
+        res.members.forEach((member) => {
+          if (member.presence.game && member.presence.game.name === 'Overwatch'
+          && this.discordToSlackMap[member.user.tag]) {
+            onlineUsers.push(this.discordToSlackMap[member.user.tag]);
+        }
+});
+      slackMessageAttachment[0].text = this.onlineUsersMessage(onlineUsers);
+      // Send intial message and set slack message id so presence updates can update the message.
+      this.slackClient.sendMessage(channelIdToNotify, '', slackMessageAttachment)
+      .then((slackResponse) => {
+        slackMessageId = slackResponse.ts;
+      });
+      });
+    });
 
-    slackClient.sendMessage(channelIdToNotify, '', slackMessageAttachment).then((slackResponse) => {
-      this.discordClient.on('presenceUpdate', (oldMember, newMember) => {
-        if (newMember.presence.game) {
-          console.log(`${newMember.user.tag} has started playing ${newMember.presence.game.name}`);
-          onlineUsers.push(this.discordToSlackMap[newMember.user.tag]);
+    // handle presence updates. i.e. when user logs in and logs out of game.
+    this.discordClient.on('presenceUpdate', (oldMember, newMember) => {
+      if (newMember.presence.game && newMember.presence.game.name === 'Overwatch'
+      && this.discordToSlackMap[newMember.user.tag]) {
+        console.log(`${newMember.user.tag} has started playing ${newMember.presence.game.name}`);
+        onlineUsers.push(this.discordToSlackMap[newMember.user.tag]);
+        slackMessageAttachment[0].text = this.onlineUsersMessage(onlineUsers);
 
-          slackMessageAttachment[0].text = `Online now: ${onlineUsers.join(' ')}`;
-
+        this.slackClient
+        .updateMessage(
+          channelIdToNotify,
+          slackMessageId,
+          '',
+          slackMessageAttachment
+        );
+      } else {
+        console.log(`${newMember.user.tag} has finished playing ${oldMember.presence.game.name}`);
+        const index = onlineUsers.indexOf(this.discordToSlackMap[newMember.user.tag]);
+        if (index >= 0) {
+          onlineUsers.splice(index, 1);
+          slackMessageAttachment[0].text = this.onlineUsersMessage(onlineUsers);
           this.slackClient
           .updateMessage(
             channelIdToNotify,
-            slackResponse.tts,
+            slackMessageId,
             '',
             slackMessageAttachment
           );
-        } else {
-          console.log(`${newMember.user.tag} has finished playing ${oldMember.presence.game.name}`);
-          const index = onlineUsers.indexOf(newMember.user.tag);
-          if (index >= 0) {
-            onlineUsers.splice(index, 1);
-            slackMessageAttachment[0].text = `Online now: ${onlineUsers.join(' ')}`;
-            this.slackClient
-            .updateMessage(
-              channelIdToNotify,
-              slackResponse.tts,
-              '',
-              slackMessageAttachment
-            );
-          }
         }
-      });
+      }
     });
   }
 };

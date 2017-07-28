@@ -16,22 +16,21 @@ module.exports = class DiscordBot {
     this.discordToSlackMap = {};
 
     members.forEach((member) => {
-      if (member.discordId) {
+      if(member.discordId) {
         this.discordToSlackMap[member.discordId] = member.slackId;
       }
     });
   }
   /**
    * @param  {array} slackIds
-   * @return {string}
    */
   onlineUsersMessage(slackIds) {
-    let messageString = 'Nobody :feelsbadman:';
-    if (slackIds.length) {
-      messageString = '';
-      slackIds.forEach((slackId) => {
-        messageString += `<@${slackId}> `;
-      });
+    let messageString = "Nobody :feelsbadman:";
+    if(slackIds.length) {
+      messageString = "";
+      slackIds.forEach(slackId => {
+        messageString += `<@${slackId}> `
+      })
     }
 
     return `Online now: ${messageString}`;
@@ -52,23 +51,20 @@ module.exports = class DiscordBot {
           title_link: 'http://www.theggg.club/',
           image_url: 'https://www.overwatchcontenders.com/images/bg/art-team-jumping.jpg',
           footer: `Notified by: <@${notifiedBySlackUserId}>}`,
-          text: this.onlineUsersMessage(onlineUsers),
+          text: this.onlineUsersMessage(onlineUsers)
       },
     ];
 
     this.discordClient.on('ready', () => {
       // Get users that are already online.
-      this.discordClient.guilds.first().fetchMembers().then((res) => {
-        res.members.forEach((member) => {
-          if (member.presence.game && member.presence.game.name === 'Overwatch'
-          && this.discordToSlackMap[member.user.tag]) {
+      this.discordClient.guilds.first().fetchMembers().then(res => {
+        res.members.forEach(member => {
+          if (member.presence.game && member.presence.game.name === 'Overwatch' && this.discordToSlackMap[member.user.tag]) {
             onlineUsers.push(this.discordToSlackMap[member.user.tag]);
-        }
-});
+        }})
       slackMessageAttachment[0].text = this.onlineUsersMessage(onlineUsers);
       // Send intial message and set slack message id so presence updates can update the message.
-      this.slackClient.sendMessage(channelIdToNotify, '', slackMessageAttachment)
-      .then((slackResponse) => {
+      this.slackClient.sendMessage(channelIdToNotify, '<!channel>', slackMessageAttachment).then((slackResponse) => {
         slackMessageId = slackResponse.ts;
       });
       });
@@ -76,8 +72,7 @@ module.exports = class DiscordBot {
 
     // handle presence updates. i.e. when user logs in and logs out of game.
     this.discordClient.on('presenceUpdate', (oldMember, newMember) => {
-      if (newMember.presence.game && newMember.presence.game.name === 'Overwatch'
-      && this.discordToSlackMap[newMember.user.tag]) {
+      if (newMember.presence.game && newMember.presence.game.name === 'Overwatch' && this.discordToSlackMap[newMember.user.tag]) {
         console.log(`${newMember.user.tag} has started playing ${newMember.presence.game.name}`);
         onlineUsers.push(this.discordToSlackMap[newMember.user.tag]);
         slackMessageAttachment[0].text = this.onlineUsersMessage(onlineUsers);
@@ -86,11 +81,10 @@ module.exports = class DiscordBot {
         .updateMessage(
           channelIdToNotify,
           slackMessageId,
-          '',
+          '<!channel>',
           slackMessageAttachment
         );
       } else {
-        console.log(`${newMember.user.tag} has finished playing ${oldMember.presence.game.name}`);
         const index = onlineUsers.indexOf(this.discordToSlackMap[newMember.user.tag]);
         if (index >= 0) {
           onlineUsers.splice(index, 1);
@@ -105,5 +99,6 @@ module.exports = class DiscordBot {
         }
       }
     });
+
   }
 };
